@@ -1,5 +1,4 @@
-
-package com.amanagarwal.unscramble.ui
+package com.amanagarwal.unscramble.ui.screens
 
 import android.app.Activity
 import androidx.activity.compose.LocalActivity
@@ -41,11 +40,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amanagarwal.unscramble.R
+import com.amanagarwal.unscramble.ui.GameViewModel
 import com.amanagarwal.unscramble.ui.theme.UnscrambleTheme
 
 
 @Composable
-fun GameScreen(gameViewModel:GameViewModel) {
+fun GameScreen(gameViewModel: GameViewModel) {
     val gameUiState by gameViewModel.uiState.collectAsState()
     val mediumPadding = dimensionResource(R.dimen.padding_medium)
     gameViewModel.setWords()

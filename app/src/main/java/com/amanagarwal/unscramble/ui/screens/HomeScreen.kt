@@ -17,7 +17,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.amanagarwal.unscramble.R
 import com.amanagarwal.unscramble.ui.ApiUiState
-import com.amanagarwal.unscramble.ui.GameScreen
 import com.amanagarwal.unscramble.ui.GameViewModel
 
 
