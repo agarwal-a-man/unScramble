@@ -3,30 +3,64 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.amanagarwal.unscramble.WordsApplication
 import com.amanagarwal.unscramble.data.MAX_NO_OF_WORDS
 import com.amanagarwal.unscramble.data.SCORE_INCREASE
+import com.amanagarwal.unscramble.data.WordsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.amanagarwal.unscramble.data.allWords
+import com.amanagarwal.unscramble.data.newWords
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import retrofit2.HttpException
+import java.io.IOException
 
 private lateinit var currentWord :String
 private var usedWords : MutableSet<String> = mutableSetOf()
 
+sealed interface ApiUiState{
+    data class Success(val data:Set<String>):ApiUiState
+    object Error:ApiUiState
+    object Loading:ApiUiState
+}
 
 
-class GameViewModel:ViewModel() {
+class GameViewModel(private val wordRepository: WordsRepository):ViewModel() {
 
     private val _uiState = MutableStateFlow(GameUiState())
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
     var userGuess by mutableStateOf("")
         private set
-
+    var apiUiState: ApiUiState by mutableStateOf(ApiUiState.Loading)
+        private set
     init {
+        getWord()
         resetGame()
     }
+
+    fun getWord() {
+        viewModelScope.launch {
+            apiUiState = ApiUiState.Loading
+            try {
+                apiUiState = ApiUiState.Success(wordRepository.getUnscrambledWord())
+                newWords = apiUiState as Set<String>
+            } catch (e: IOException) {
+                apiUiState = ApiUiState.Error
+            } catch (e: HttpException) {
+                apiUiState = ApiUiState.Error
+            }
+        }
+    }
+
+
 
     fun resetGame() {
         usedWords.clear()
@@ -38,7 +72,8 @@ class GameViewModel:ViewModel() {
         userGuess = guessWord
     }
 
-    private fun pickRandomWordAndShuffle(): String {
+
+        fun pickRandomWordAndShuffle(): String {
         currentWord = allWords.random()
         if (usedWords.contains(currentWord)) {
             return pickRandomWordAndShuffle()
@@ -101,4 +136,14 @@ class GameViewModel:ViewModel() {
             }
         }
     }
+
+    companion object{
+            val Factory: ViewModelProvider.Factory = viewModelFactory {
+                initializer {
+                    val application = (this[APPLICATION_KEY] as WordsApplication)
+                    val wordRepository = application.container.wordsRepository
+                    GameViewModel(wordRepository = wordRepository)
+                }
+            }
+        }
 }

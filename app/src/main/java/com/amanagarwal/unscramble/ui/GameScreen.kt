@@ -47,8 +47,9 @@ import com.amanagarwal.unscramble.ui.theme.UnscrambleTheme
 
 @Composable
 fun GameScreen(
-    gameViewModel : GameViewModel = viewModel()
+
 ) {
+    val gameViewModel : GameViewModel = viewModel(factory = GameViewModel.Factory)
     val gameUiState by gameViewModel.uiState.collectAsState()
     val mediumPadding = dimensionResource(R.dimen.padding_medium)
 
