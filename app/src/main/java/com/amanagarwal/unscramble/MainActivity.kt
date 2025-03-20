@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.amanagarwal.unscramble.ui.GameScreen
+import com.amanagarwal.unscramble.ui.screens.HomeScreen
+import com.amanagarwal.unscramble.ui.theme.UnScrambleApp
 import com.amanagarwal.unscramble.ui.theme.UnscrambleTheme
 
 class MainActivity : ComponentActivity() {
@@ -19,7 +21,7 @@ class MainActivity : ComponentActivity() {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    GameScreen()
+                    UnScrambleApp()
                 }
             }
         }

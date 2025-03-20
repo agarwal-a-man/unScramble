@@ -1,4 +1,5 @@
 package com.amanagarwal.unscramble.ui
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import com.amanagarwal.unscramble.data.allWords
-import com.amanagarwal.unscramble.data.newWords
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -24,9 +24,11 @@ import java.io.IOException
 
 private lateinit var currentWord :String
 private var usedWords : MutableSet<String> = mutableSetOf()
+private lateinit var newWords : Set<String>
+
 
 sealed interface ApiUiState{
-    data class Success(val data:Set<String>):ApiUiState
+    data class Success(val words:Set<String>):ApiUiState
     object Error:ApiUiState
     object Loading:ApiUiState
 }
@@ -41,8 +43,10 @@ class GameViewModel(private val wordRepository: WordsRepository):ViewModel() {
         private set
     var apiUiState: ApiUiState by mutableStateOf(ApiUiState.Loading)
         private set
+
     init {
         getWord()
+        setWords()
         resetGame()
     }
 
@@ -51,15 +55,27 @@ class GameViewModel(private val wordRepository: WordsRepository):ViewModel() {
             apiUiState = ApiUiState.Loading
             try {
                 apiUiState = ApiUiState.Success(wordRepository.getUnscrambledWord())
-                newWords = apiUiState as Set<String>
             } catch (e: IOException) {
                 apiUiState = ApiUiState.Error
+                ApiUiState.Success(allWords)
+                Log.e("error", "getWord: ")
             } catch (e: HttpException) {
                 apiUiState = ApiUiState.Error
+                ApiUiState.Success(allWords)
+                Log.e("error", "getWord: ")
             }
         }
     }
-
+    fun setWords(){
+        when(apiUiState){
+            is ApiUiState.Success -> {
+                newWords = (apiUiState as ApiUiState.Success).words
+            }
+            else -> {
+                newWords = allWords
+            }
+        }
+    }
 
 
     fun resetGame() {
@@ -73,8 +89,8 @@ class GameViewModel(private val wordRepository: WordsRepository):ViewModel() {
     }
 
 
-        fun pickRandomWordAndShuffle(): String {
-        currentWord = allWords.random()
+    fun pickRandomWordAndShuffle(): String {
+        currentWord = newWords.random()
         if (usedWords.contains(currentWord)) {
             return pickRandomWordAndShuffle()
         } else {

@@ -40,18 +40,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.amanagarwal.unscramble.R
 import com.amanagarwal.unscramble.ui.theme.UnscrambleTheme
 
 
 @Composable
-fun GameScreen(
-
-) {
-    val gameViewModel : GameViewModel = viewModel(factory = GameViewModel.Factory)
+fun GameScreen(gameViewModel:GameViewModel) {
     val gameUiState by gameViewModel.uiState.collectAsState()
     val mediumPadding = dimensionResource(R.dimen.padding_medium)
+    gameViewModel.setWords()
 
     Column(
         modifier = Modifier
@@ -240,6 +237,8 @@ private fun FinalScoreDialog(
 @Composable
 fun GameScreenPreview() {
     UnscrambleTheme {
-        GameScreen()
+        GameScreen(
+            gameViewModel = TODO()
+        )
     }
 }

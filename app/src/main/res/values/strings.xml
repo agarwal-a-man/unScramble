@@ -27,4 +27,7 @@
     <string name="exit">Exit</string>
     <string name="play_again">Play Again</string>
     <string name="wrong_guess">Wrong Guess!</string>
+    <string name="loading_failed">Loading Failed</string>
+    <string name="retry">Retry\n</string>
+    <string name="loading">Loading\n</string>
 </resources>
