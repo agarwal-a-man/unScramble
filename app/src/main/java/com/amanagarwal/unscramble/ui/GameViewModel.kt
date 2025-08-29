@@ -45,8 +45,6 @@ class GameViewModel(private val wordRepository: WordsRepository):ViewModel() {
         private set
 
     init {
-        getWord()
-        setWords()
         resetGame()
     }
 
@@ -54,6 +52,7 @@ class GameViewModel(private val wordRepository: WordsRepository):ViewModel() {
         viewModelScope.launch {
             apiUiState = ApiUiState.Loading
             try {
+                Log.i("words", "getWord: ")
                 apiUiState = ApiUiState.Success(wordRepository.getUnscrambledWord())
             } catch (e: IOException) {
                 apiUiState = ApiUiState.Error
@@ -67,18 +66,23 @@ class GameViewModel(private val wordRepository: WordsRepository):ViewModel() {
         }
     }
     fun setWords(){
+        Log.i("words", "setWords:")
         when(apiUiState){
             is ApiUiState.Success -> {
                 newWords = (apiUiState as ApiUiState.Success).words
+                Log.i("words", "Success setWords:")
             }
             else -> {
                 newWords = allWords
+                Log.i("words", "else setWords:")
             }
         }
     }
 
 
     fun resetGame() {
+        getWord()
+        setWords()
         usedWords.clear()
         _uiState.value = GameUiState(currentScrambleWord = pickRandomWordAndShuffle())
     }
