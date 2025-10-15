@@ -1,56 +1,48 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.amanagarwal.unscramble.ui.theme
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.amanagarwal.unscramble.ui.GameViewModel
 import com.amanagarwal.unscramble.ui.screens.HomeScreen
-import com.amanagarwal.unscramble.R
+import com.amanagarwal.unscramble.viewmodels.GameViewModel
+import com.amanagarwal.unscramble.viewmodels.ViewModelProvider
+import com.amanagarwal.unscramble.viewmodels.WordsViewModel
 
 @Composable
 fun UnScrambleApp() {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+
+    // refreshKey increments cause a new fetch cycle
+    val refreshKey = remember { mutableStateOf(0) }
+
+    val wordsViewModel: WordsViewModel =
+        viewModel(factory = ViewModelProvider.Factory)
+    val gameViewModel: GameViewModel = viewModel()
+
+    // collect api state safely for recomposition
+    val apiUiState by wordsViewModel.apiUiState.collectAsState()
+
+    // define what 'Play Again' does: reset UI state immediately and request new words
+    val onPlayAgain = {
+        gameViewModel.resetGame()        // clear score/progress immediately
+        refreshKey.value = refreshKey.value + 1 // trigger fetch of new words
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {UnScrambleTopAppBar(scrollBehavior = scrollBehavior) }
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val gameViewModel: GameViewModel =
-                viewModel(factory = GameViewModel.Factory)
-            HomeScreen(
-                apiUiState = gameViewModel.apiUiState,
-                contentPadding = it,
-                retryAction = gameViewModel::getWord,
-                gameViewModel = gameViewModel
-            )
-        }
+        topBar = { /* your top app bar here */ }
+    ) { innerPadding ->
+        HomeScreen(
+            apiUiState = apiUiState,
+            contentPadding = innerPadding,
+            retryAction = wordsViewModel::fetchWords,
+            gameViewModel = gameViewModel,
+            refreshKey = refreshKey.value,
+            onRequestRefresh = { refreshKey.value = refreshKey.value + 1 },
+            onPlayAgain = onPlayAgain
+        )
     }
-}
-
-@Composable
-fun UnScrambleTopAppBar(scrollBehavior: TopAppBarScrollBehavior, modifier: Modifier = Modifier) {
-    CenterAlignedTopAppBar(
-        scrollBehavior = scrollBehavior,
-        title = {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineSmall,
-            )
-        },
-        modifier = modifier
-    )
 }
