@@ -1,44 +1,80 @@
 package com.amanagarwal.unscramble.viewmodels
+
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.amanagarwal.unscramble.WordsApplication
 import com.amanagarwal.unscramble.data.MAX_NO_OF_WORDS
 import com.amanagarwal.unscramble.data.SCORE_INCREASE
 import com.amanagarwal.unscramble.data.WordsRepository
+import com.amanagarwal.unscramble.data.allWords
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import com.amanagarwal.unscramble.data.allWords
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import retrofit2.HttpException
-import java.io.IOException
 
+private const val TAG = "GameViewModel"
 
-class GameViewModel : ViewModel() {
+sealed interface GameUiState {
+    object Loading : GameUiState
+    object Error : GameUiState
+    data class Success(
+        val currentScrambleWord: String = "",
+        val isGuessedWordWrong: Boolean = false,
+        val score: Int = 0,
+        val currentWordCount: Int = 1,
+        val isGameOver: Boolean = false
+    ) : GameUiState
+}
+
+class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
+    val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
     private var currentWord: String = ""
     private val usedWords = mutableSetOf<String>()
     private var availableWords: Set<String> = emptySet()
 
-    private val _uiState = MutableStateFlow(GameUiState())
-    val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
-
     var userGuess by mutableStateOf("")
         private set
 
-    fun setWords(words: Set<String>) {
-        availableWords = words
+    init {
+        Log.d(TAG, "GameViewModel initialized")
+        fetchWords()
+    }
+
+    fun fetchWords() {
+        Log.d(TAG, "Fetching words...")
+        _uiState.value = GameUiState.Loading
+        viewModelScope.launch {
+            try {
+                val words = wordsRepository.getUnscrambledWord()
+                availableWords = words
+                Log.d(TAG, "Words successfully fetched from repository. Count: ${words.size}")
+                resetGameInternal()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching words: ${e.message}. Falling back to local words.", e)
+                availableWords = allWords
+                resetGameInternal()
+            }
+        }
+    }
+
+    private fun resetGameInternal() {
+        Log.d(TAG, "Resetting game internal state")
         usedWords.clear()
-        _uiState.value = GameUiState(currentScrambleWord = pickRandomWordAndShuffle())
+        userGuess = ""
+        val firstWord = pickRandomWordAndShuffle()
+        _uiState.value = GameUiState.Success(
+            currentScrambleWord = firstWord,
+            currentWordCount = 1,
+            score = 0,
+            isGameOver = false
+        )
     }
 
     fun updateUserGuess(guess: String) {
@@ -46,27 +82,44 @@ class GameViewModel : ViewModel() {
     }
 
     fun checkUserGuess() {
+        val currentState = _uiState.value
+        if (currentState !is GameUiState.Success) return
+
         val guess = userGuess.trim()
+        Log.d(TAG, "Checking guess: $guess against target: $currentWord")
         if (guess.equals(currentWord, ignoreCase = true)) {
-            updateGameState(_uiState.value.score + SCORE_INCREASE)
+            Log.d(TAG, "Correct guess!")
+            updateGameState(currentState.score + SCORE_INCREASE)
         } else {
-            val newScore = (_uiState.value.score - 10).coerceAtLeast(0)
-            _uiState.update { it.copy(isGuessedWordWrong = true, score = newScore) }
+            Log.d(TAG, "Wrong guess!")
+            val newScore = (currentState.score - 10).coerceAtLeast(0)
+            _uiState.update { 
+                if (it is GameUiState.Success) it.copy(isGuessedWordWrong = true, score = newScore) else it
+            }
         }
         updateUserGuess("")
     }
 
     fun skipWord() {
-        updateGameState(_uiState.value.score)
-        updateUserGuess("")
+        Log.d(TAG, "Word skipped: $currentWord")
+        val currentState = _uiState.value
+        if (currentState is GameUiState.Success) {
+            updateGameState(currentState.score)
+            updateUserGuess("")
+        }
     }
 
     private fun pickRandomWordAndShuffle(): String {
         val unused = availableWords - usedWords
-        if (unused.isEmpty()) return ""
+        if (unused.isEmpty()) {
+            Log.w(TAG, "No more available words!")
+            return ""
+        }
         currentWord = unused.random()
         usedWords.add(currentWord)
-        return shuffleCurrentWord(currentWord)
+        val shuffled = shuffleCurrentWord(currentWord)
+        Log.d(TAG, "Picked word: $currentWord, Shuffled: $shuffled")
+        return shuffled
     }
 
     private fun shuffleCurrentWord(word: String): String {
@@ -79,34 +132,32 @@ class GameViewModel : ViewModel() {
     }
 
     private fun updateGameState(updatedScore: Int) {
+        val currentState = _uiState.value
+        if (currentState !is GameUiState.Success) return
+
         if (usedWords.size >= MAX_NO_OF_WORDS) {
-            _uiState.update { it.copy(isGameOver = true, score = updatedScore) }
+            Log.d(TAG, "Game Over. Final Score: $updatedScore")
+            _uiState.update { 
+                if (it is GameUiState.Success) it.copy(isGameOver = true, score = updatedScore) else it
+            }
         } else {
+            val nextWord = pickRandomWordAndShuffle()
+            Log.d(TAG, "Moving to next word. New Score: $updatedScore, Current Count: ${usedWords.size}")
             _uiState.update {
-                it.copy(
-                    isGuessedWordWrong = false,
-                    currentWordCount = it.currentWordCount + 1,
-                    score = updatedScore,
-                    currentScrambleWord = pickRandomWordAndShuffle()
-                )
+                if (it is GameUiState.Success) {
+                    it.copy(
+                        isGuessedWordWrong = false,
+                        currentWordCount = it.currentWordCount + 1,
+                        score = updatedScore,
+                        currentScrambleWord = nextWord
+                    )
+                } else it
             }
         }
     }
 
     fun resetGame() {
-        // clear used words and UI state but don't fetch — fetching is handled by WordsViewModel via refreshKey
-        usedWords.clear()
-        userGuess = ""
-        _uiState.value = GameUiState() // resets score/currentWordCount/isGameOver etc.
-        // NOTE: do NOT call setWords() here. setWords(...) will be invoked by Reset's LaunchedEffect
+        Log.d(TAG, "Reset game requested")
+        fetchWords()
     }
-
 }
-
-data class GameUiState(
-    val currentScrambleWord: String = "",
-    val isGuessedWordWrong: Boolean = false,
-    val score: Int = 0,
-    val currentWordCount: Int = 1,
-    val isGameOver: Boolean = false
-)
