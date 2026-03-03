@@ -11,7 +11,7 @@ interface AppContainer {
 }
 
 class DefaultAppContainer : AppContainer{
-    private val baseUrl = "https://random-word-api.vercel.app/"
+    private val baseUrl = "https://random-word-api.herokuapp.com/"
 
     private val retrofit: Retrofit = Retrofit.Builder()
         .addConverterFactory(Json.asConverterFactory("application/json".toMediaType()))

@@ -9,7 +9,7 @@ import com.amanagarwal.unscramble.WordsApplication
 object ViewModelProvider {
     val Factory = viewModelFactory {
         initializer {
-            WordsViewModel(application().container.wordsRepository)
+            GameViewModel(application().container.wordsRepository)
         }
     }
 }
