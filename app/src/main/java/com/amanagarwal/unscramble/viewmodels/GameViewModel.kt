@@ -26,7 +26,12 @@ sealed interface GameUiState {
         val isGuessedWordWrong: Boolean = false,
         val score: Int = 0,
         val currentWordCount: Int = 1,
-        val isGameOver: Boolean = false
+        val isGameOver: Boolean = false,
+        val isDevMode: Boolean = false,
+        val correctWord: String = "",
+        val isOffline: Boolean = false,
+        val availableWordsCount: Int = 0,
+        val usedWordsCount: Int = 0
     ) : GameUiState
 }
 
@@ -36,6 +41,8 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
     private var currentWord: String = ""
+    private var isDevMode: Boolean = false
+    private var isOffline: Boolean = false
     private val usedWords = mutableSetOf<String>()
     private var availableWords: Set<String> = emptySet()
 
@@ -54,11 +61,13 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
             try {
                 val words = wordsRepository.getUnscrambledWord()
                 availableWords = words
+                isOffline = false
                 Log.d(TAG, "Words successfully fetched from repository. Count: ${words.size}")
                 resetGameInternal()
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching words: ${e.message}. Falling back to local words.", e)
                 availableWords = allWords
+                isOffline = true
                 resetGameInternal()
             }
         }
@@ -73,12 +82,41 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
             currentScrambleWord = firstWord,
             currentWordCount = 1,
             score = 0,
-            isGameOver = false
+            isGameOver = false,
+            isDevMode = isDevMode,
+            correctWord = currentWord,
+            isOffline = isOffline,
+            availableWordsCount = availableWords.size,
+            usedWordsCount = usedWords.size
         )
     }
 
     fun updateUserGuess(guess: String) {
-        userGuess = guess
+        if (guess == "dev_mode=true") {
+            isDevMode = true
+            updateDevModeInState()
+            userGuess = ""
+            Log.d(TAG, "Developer mode enabled")
+        } else if (guess == "dev_mode=false") {
+            isDevMode = false
+            updateDevModeInState()
+            userGuess = ""
+            Log.d(TAG, "Developer mode disabled")
+        } else {
+            userGuess = guess
+        }
+    }
+    
+    private fun updateDevModeInState() {
+        _uiState.update { 
+            if (it is GameUiState.Success) it.copy(
+                isDevMode = isDevMode,
+                correctWord = currentWord,
+                isOffline = isOffline,
+                availableWordsCount = availableWords.size,
+                usedWordsCount = usedWords.size
+            ) else it
+        }
     }
 
     fun checkUserGuess() {
@@ -107,6 +145,29 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
             updateGameState(currentState.score)
             updateUserGuess("")
         }
+    }
+
+    // Dev mode feature: Skip word without losing score and without incrementing word count if desired?
+    // Actually, usually "Skip" just moves to next word. A dev skip might just be "Give me another one".
+    fun devSkip() {
+        if (!isDevMode) return
+        Log.d(TAG, "Dev Skip triggered")
+        val nextWord = pickRandomWordAndShuffle()
+        _uiState.update {
+            if (it is GameUiState.Success) {
+                it.copy(
+                    isGuessedWordWrong = false,
+                    currentScrambleWord = nextWord,
+                    correctWord = currentWord,
+                    usedWordsCount = usedWords.size
+                )
+            } else it
+        }
+    }
+
+    fun devReveal() {
+        if (!isDevMode) return
+        userGuess = currentWord
     }
 
     private fun pickRandomWordAndShuffle(): String {
@@ -149,7 +210,11 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
                         isGuessedWordWrong = false,
                         currentWordCount = it.currentWordCount + 1,
                         score = updatedScore,
-                        currentScrambleWord = nextWord
+                        currentScrambleWord = nextWord,
+                        correctWord = currentWord,
+                        isDevMode = isDevMode,
+                        isOffline = isOffline,
+                        usedWordsCount = usedWords.size
                     )
                 } else it
             }
