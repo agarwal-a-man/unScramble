@@ -7,9 +7,11 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.amanagarwal.unscramble.data.MAX_NO_OF_WORDS
-import com.amanagarwal.unscramble.data.SCORE_INCREASE
 import com.amanagarwal.unscramble.data.WordsRepository
 import com.amanagarwal.unscramble.data.allWords
+import com.amanagarwal.unscramble.domain.usecase.CalculateScoreUseCase
+import com.amanagarwal.unscramble.domain.usecase.ShuffleWordUseCase
+import com.amanagarwal.unscramble.domain.usecase.ValidateGuessUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,7 +39,12 @@ sealed interface GameUiState {
     ) : GameUiState
 }
 
-class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() {
+class GameViewModel(
+    private val wordsRepository: WordsRepository,
+    private val shuffleWordUseCase: ShuffleWordUseCase,
+    private val validateGuessUseCase: ValidateGuessUseCase,
+    private val calculateScoreUseCase: CalculateScoreUseCase
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
@@ -143,26 +150,25 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
         val currentState = _uiState.value
         if (currentState !is GameUiState.Success) return
 
-        val guess = userGuess.trim()
-        Log.d(TAG, "Checking guess: $guess against target: $currentWord")
-        if (guess.equals(currentWord, ignoreCase = true)) {
-            Log.d(TAG, "Correct guess!")
-            updateGameState(currentState.score + SCORE_INCREASE, SCORE_INCREASE)
-        } else {
-            Log.d(TAG, "Wrong guess!")
-            if (currentState.isGuessedWordWrong) {
-                _uiState.update { 
-                    if (it is GameUiState.Success) it.copy(scoreChangeDelta = 0) else it
-                }
-            } else {
-                val newScore = (currentState.score - 10).coerceAtLeast(0)
-                _uiState.update { 
+        when (validateGuessUseCase(userGuess, currentWord)) {
+            is ValidateGuessUseCase.Result.Correct -> {
+                Log.d(TAG, "Correct guess!")
+                val newScore = calculateScoreUseCase.onCorrectGuess(currentState.score)
+                updateGameState(newScore, newScore - currentState.score)
+            }
+            is ValidateGuessUseCase.Result.Incorrect -> {
+                Log.d(TAG, "Wrong guess!")
+                val newScore = calculateScoreUseCase.onWrongGuess(currentState.score)
+                _uiState.update {
                     if (it is GameUiState.Success) it.copy(
-                        isGuessedWordWrong = true, 
+                        isGuessedWordWrong = true,
                         score = newScore,
-                        scoreChangeDelta = -10
+                        scoreChangeDelta = newScore - currentState.score
                     ) else it
                 }
+            }
+            is ValidateGuessUseCase.Result.Empty -> {
+                // Do nothing — don't penalise an empty submission
             }
         }
         updateUserGuess("")
@@ -172,7 +178,8 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
         Log.d(TAG, "Word skipped: $currentWord")
         val currentState = _uiState.value
         if (currentState is GameUiState.Success) {
-            updateGameState(currentState.score, 0)
+            val newScore = calculateScoreUseCase.onSkip(currentState.score)
+            updateGameState(newScore, newScore - currentState.score)
             updateUserGuess("")
         }
     }
@@ -213,17 +220,8 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
         }
         currentWord = unused.random()
         usedWords.add(currentWord)
-        val shuffled = shuffleCurrentWord(currentWord)
+        val shuffled = shuffleWordUseCase(currentWord)
         Log.d(TAG, "Picked word: $currentWord, Shuffled: $shuffled")
-        return shuffled
-    }
-
-    private fun shuffleCurrentWord(word: String): String {
-        if (word.length < 2) return word
-        var shuffled: String
-        do {
-            shuffled = word.toList().shuffled().joinToString("")
-        } while (shuffled == word)
         return shuffled
     }
 

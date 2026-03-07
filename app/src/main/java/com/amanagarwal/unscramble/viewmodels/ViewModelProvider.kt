@@ -5,11 +5,19 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.amanagarwal.unscramble.WordsApplication
+import com.amanagarwal.unscramble.domain.usecase.CalculateScoreUseCase
+import com.amanagarwal.unscramble.domain.usecase.ShuffleWordUseCase
+import com.amanagarwal.unscramble.domain.usecase.ValidateGuessUseCase
 
 object ViewModelProvider {
     val Factory = viewModelFactory {
         initializer {
-            GameViewModel(application().container.wordsRepository)
+            GameViewModel(
+                wordsRepository = application().container.wordsRepository,
+                shuffleWordUseCase = ShuffleWordUseCase(),
+                validateGuessUseCase = ValidateGuessUseCase(),
+                calculateScoreUseCase = CalculateScoreUseCase()
+            )
         }
     }
 }

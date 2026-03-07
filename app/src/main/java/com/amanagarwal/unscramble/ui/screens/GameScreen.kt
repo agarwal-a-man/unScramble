@@ -1,7 +1,5 @@
 package com.amanagarwal.unscramble.ui.screens
 
-import android.app.Activity
-import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
