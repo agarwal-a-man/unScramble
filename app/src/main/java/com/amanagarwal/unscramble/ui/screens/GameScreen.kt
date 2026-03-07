@@ -12,7 +12,20 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -21,16 +34,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -38,6 +61,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amanagarwal.unscramble.BuildConfig
 import com.amanagarwal.unscramble.R
 import com.amanagarwal.unscramble.viewmodels.GameUiState
 import com.amanagarwal.unscramble.viewmodels.GameViewModel
@@ -91,7 +115,7 @@ fun GameContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Dev Mode Overlay
-        if (state.isDevMode) {
+        if (BuildConfig.DEBUG && state.isDevMode) {
             DevModeInfo(
                 state = state,
                 onDevSkip = { gameViewModel.devSkip() },
@@ -124,15 +148,38 @@ fun GameContent(
             }
             
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                colors = CardDefaults.cardColors(
+                    containerColor = when {
+                        state.scoreChangeDelta > 0 -> Color(0xFFE8F5E9) // Light Green
+                        state.scoreChangeDelta < 0 -> Color(0xFFFFEBEE) // Light Red
+                        else -> MaterialTheme.colorScheme.secondaryContainer
+                    }
+                ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(
-                    text = "Score: ${state.score}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                )
+                ) {
+                    Text(
+                        text = "Score: ${state.score}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = when {
+                            state.scoreChangeDelta > 0 -> Color(0xFF2E7D32) // Dark Green
+                            state.scoreChangeDelta < 0 -> Color(0xFFC62828) // Dark Red
+                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                        }
+                    )
+                    if (state.scoreChangeDelta != 0) {
+                        Text(
+                            text = if (state.scoreChangeDelta > 0) " +${state.scoreChangeDelta}" else " ${state.scoreChangeDelta}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (state.scoreChangeDelta > 0) Color(0xFF2E7D32) else Color(0xFFC62828),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
             }
         }
 
@@ -382,6 +429,13 @@ fun GameOverDialog(
     onPlayAgain: () -> Unit,
     onHome: () -> Unit
 ) {
+    val performanceMessage = when {
+        score >= 180 -> stringResource(R.string.performance_excellent)
+        score >= 140 -> stringResource(R.string.performance_good)
+        score >= 80 -> stringResource(R.string.performance_average)
+        else -> stringResource(R.string.performance_low)
+    }
+
     AlertDialog(
         onDismissRequest = {},
         shape = RoundedCornerShape(28.dp),
@@ -395,7 +449,7 @@ fun GameOverDialog(
         },
         title = {
             Text(
-                text = "Bravo!",
+                text = performanceMessage,
                 style = MaterialTheme.typography.headlineLarge,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()

@@ -57,7 +57,7 @@ fun StartScreen(
                 textAlign = TextAlign.Center
             )
             Text(
-                text = "Unleash your vocabulary",
+                text = stringResource(R.string.unleash_vocabulary),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp)
@@ -77,7 +77,7 @@ fun StartScreen(
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
             ) {
                 Text(
-                    text = "Start Game",
+                    text = stringResource(R.string.start_game),
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.White
                 )
