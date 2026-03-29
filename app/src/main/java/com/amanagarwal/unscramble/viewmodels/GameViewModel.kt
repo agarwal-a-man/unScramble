@@ -168,7 +168,7 @@ class GameViewModel(
                 }
             }
             is ValidateGuessUseCase.Result.Empty -> {
-                // Do nothing — don't penalise an empty submission
+                // Do nothing — don't penalize an empty submission
             }
         }
         updateUserGuess("")

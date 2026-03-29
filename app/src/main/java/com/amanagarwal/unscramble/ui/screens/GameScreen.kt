@@ -8,11 +8,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -31,7 +30,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -39,28 +37,26 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amanagarwal.unscramble.BuildConfig
-import com.amanagarwal.unscramble.R
+import com.amanagarwal.unscramble.ui.theme.UnscrambleTheme
 import com.amanagarwal.unscramble.viewmodels.GameUiState
 import com.amanagarwal.unscramble.viewmodels.GameViewModel
 
@@ -72,10 +68,9 @@ fun GameScreen(
 ) {
     val uiState by gameViewModel.uiState.collectAsState()
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+    Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
         when (val state = uiState) {
             is GameUiState.Loading -> LoadingScreen(modifier = Modifier.fillMaxSize())
@@ -85,7 +80,13 @@ fun GameScreen(
             )
             is GameUiState.Success -> GameContent(
                 state = state,
-                gameViewModel = gameViewModel,
+                onUserGuessChanged = { gameViewModel.updateUserGuess(it) },
+                onGuessSubmitted = { gameViewModel.checkUserGuess() },
+                onSkipClicked = { gameViewModel.skipWord() },
+                onPlayAgain = { gameViewModel.resetGame() },
+                onDevSkip = { gameViewModel.devSkip() },
+                onDevReveal = { gameViewModel.devReveal() },
+                userGuess = gameViewModel.userGuess,
                 onHome = onHome,
                 modifier = Modifier.fillMaxSize()
             )
@@ -93,22 +94,28 @@ fun GameScreen(
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun GameContent(
     state: GameUiState.Success,
-    gameViewModel: GameViewModel,
+    onUserGuessChanged: (String) -> Unit,
+    onGuessSubmitted: () -> Unit,
+    onSkipClicked: () -> Unit,
+    onPlayAgain: () -> Unit,
+    onDevSkip: () -> Unit,
+    onDevReveal: () -> Unit,
+    userGuess: String,
     onHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val mediumPadding = 16.dp
+    val cardColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
 
     Column(
         modifier = modifier
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .safeDrawingPadding()
-            .padding(mediumPadding),
+            .padding(24.dp),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -116,183 +123,183 @@ fun GameContent(
         if (BuildConfig.DEBUG && state.isDevMode) {
             DevModeInfo(
                 state = state,
-                onDevSkip = { gameViewModel.devSkip() },
-                onDevReveal = { gameViewModel.devReveal() }
+                onDevSkip = onDevSkip,
+                onDevReveal = onDevReveal
             )
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Header with Progress and Score
+        // Header (Round and Score)
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(
-                    text = "Word ${state.currentWordCount}/10",
+                    text = "Round",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                LinearProgressIndicator(
-                    progress = { state.currentWordCount / 10f },
-                    modifier = Modifier
-                        .width(100.dp)
-                        .padding(top = 4.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.primaryContainer
+                Text(
+                    text = "${state.currentWordCount} / 10",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
             
             Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = when {
-                        state.scoreChangeDelta > 0 -> Color(0xFFE8F5E9) // Light Green
-                        state.scoreChangeDelta < 0 -> Color(0xFFFFEBEE) // Light Red
-                        else -> MaterialTheme.colorScheme.secondaryContainer
-                    }
-                ),
-                shape = RoundedCornerShape(12.dp)
+                colors = CardDefaults.cardColors(containerColor = cardColor),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Score: ${state.score}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = when {
-                            state.scoreChangeDelta > 0 -> Color(0xFF2E7D32) // Dark Green
-                            state.scoreChangeDelta < 0 -> Color(0xFFC62828) // Dark Red
-                            else -> MaterialTheme.colorScheme.onSecondaryContainer
-                        }
+                        text = "Score",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
                     )
-                    if (state.scoreChangeDelta != 0) {
-                        Text(
-                            text = if (state.scoreChangeDelta > 0) " +${state.scoreChangeDelta}" else " ${state.scoreChangeDelta}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (state.scoreChangeDelta > 0) Color(0xFF2E7D32) else Color(0xFFC62828),
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
+                    Text(
+                        text = "${state.score}",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Scrambled Word Card
+        Spacer(modifier = Modifier.height(32.dp))
         Card(
             modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Unscramble the word",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "UNSCRAMBLE",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 3.sp
                 )
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
                 AnimatedContent(
                     targetState = state.currentScrambleWord,
                     transitionSpec = {
                         (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
                                 slideInVertically(initialOffsetY = { 40 })).togetherWith(fadeOut(animationSpec = tween(90)))
-                    }
+                    },
+                    label = "ScrambledWordAnimation"
                 ) { targetWord ->
                     Text(
-                        text = targetWord,
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp
-                        ),
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Info, 
-                        contentDescription = null, 
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = stringResource(R.string.instructions),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 4.dp)
+                        text = targetWord.uppercase(),
+                        style = MaterialTheme.typography.displayMedium,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().background(Color.Transparent),
+                        letterSpacing = 6.sp,
+                        lineHeight = 48.sp
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Input Field
-        OutlinedTextField(
-            value = gameViewModel.userGuess,
-            onValueChange = { gameViewModel.updateUserGuess(it) },
+        // Input Card - Consistent color and transparent input field for blending
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            singleLine = true,
-            label = { Text("Enter your word") },
-            isError = state.isGuessedWordWrong,
-            supportingText = {
-                if (state.isGuessedWordWrong) {
-                    Text(text = "Try again!", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { gameViewModel.checkUserGuess() }),
-            colors = TextFieldDefaults.colors(
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedContainerColor = MaterialTheme.colorScheme.surface
-            )
-        )
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Your answer",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = userGuess,
+                    onValueChange = onUserGuessChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Type here...") },
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    isError = state.isGuessedWordWrong,
+                    keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onGuessSubmitted() }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
+                        errorContainerColor = Color.Transparent,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        focusedBorderColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Actions
-        Button(
-            onClick = { gameViewModel.checkUserGuess() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp)
+        // Action Buttons Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("Submit Answer", style = MaterialTheme.typography.titleMedium)
-        }
+            Button(
+                onClick = onGuessSubmitted,
+                modifier = Modifier
+                    .weight(2f)
+                    .height(64.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text("Submit", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            }
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedButton(
-            onClick = { gameViewModel.skipWord() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            border = ButtonDefaults.outlinedButtonBorder(enabled = true)
-        ) {
-            Text("Skip Word", style = MaterialTheme.typography.titleMedium)
+            OutlinedButton(
+                onClick = onSkipClicked,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(64.dp),
+                shape = RoundedCornerShape(20.dp),
+                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                    width = 2.dp
+                )
+            ) {
+                Text(
+                    text = "Skip", 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 
     if (state.isGameOver) {
         GameOverDialog(
             score = state.score,
-            onPlayAgain = { gameViewModel.resetGame() },
+            onPlayAgain = onPlayAgain,
             onHome = onHome
         )
     }
@@ -305,9 +312,7 @@ fun DevModeInfo(
     onDevReveal: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.8f)
         ),
@@ -328,57 +333,31 @@ fun DevModeInfo(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = if (state.isOffline) "Status: OFFLINE (Local Data)" else "Status: ONLINE (API)",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium
+                        text = "Ans: ${state.correctWord.uppercase()}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
                     )
                 }
                 
-                Surface(
-                    color = MaterialTheme.colorScheme.tertiary,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text(
-                        text = state.correctWord.uppercase(),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = Color.White,
-                        fontWeight = FontWeight.Black
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onDevReveal,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("Reveal", style = MaterialTheme.typography.labelMedium)
+                    }
+                    OutlinedButton(
+                        onClick = onDevSkip,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Text("Skip", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.tertiary)
+                    }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onDevReveal,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text("Reveal Answer", style = MaterialTheme.typography.labelLarge)
-                }
-                OutlinedButton(
-                    onClick = onDevSkip,
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text("Dev Skip", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.tertiary)
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            Text(
-                text = "Pool: ${state.availableWordsCount} words | Used: ${state.usedWordsCount}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
-            )
         }
     }
 }
@@ -389,10 +368,7 @@ fun LoadingScreen(modifier: Modifier = Modifier) {
         modifier = modifier,
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(48.dp),
-            color = MaterialTheme.colorScheme.primary
-        )
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -403,21 +379,9 @@ fun ErrorScreen(modifier: Modifier = Modifier, retryAction: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_connection_error),
-            contentDescription = stringResource(R.string.loading_failed)
-        )
-        Text(
-            text = stringResource(R.string.loading_failed), 
-            modifier = Modifier.padding(16.dp),
-            style = MaterialTheme.typography.bodyLarge
-        )
-        Button(
-            onClick = retryAction,
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(text = stringResource(R.string.retry))
-        }
+        Text(text = "Something went wrong", style = MaterialTheme.typography.bodyLarge)
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = retryAction) { Text("Retry") }
     }
 }
 
@@ -427,77 +391,83 @@ fun GameOverDialog(
     onPlayAgain: () -> Unit,
     onHome: () -> Unit
 ) {
-    val performanceMessage = when {
-        score >= 180 -> stringResource(R.string.performance_excellent)
-        score >= 140 -> stringResource(R.string.performance_good)
-        score >= 80 -> stringResource(R.string.performance_average)
-        else -> stringResource(R.string.performance_low)
-    }
-
     AlertDialog(
         onDismissRequest = {},
         shape = RoundedCornerShape(28.dp),
-        icon = {
-            Icon(
-                Icons.Default.CheckCircle, 
-                contentDescription = null, 
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        },
-        title = {
-            Text(
-                text = performanceMessage,
-                style = MaterialTheme.typography.headlineLarge,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
+        icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary) },
+        title = { Text(text = "Game Over!", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "You've successfully completed the challenge.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "Final Score",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "$score",
-                    style = MaterialTheme.typography.displayMedium.copy(
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Black
-                    )
-                )
+                Text(text = "Final Score", style = MaterialTheme.typography.labelLarge)
+                Text(text = "$score", style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
             }
         },
         confirmButton = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
-                    onClick = onPlayAgain,
-                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onPlayAgain, 
+                    modifier = Modifier.fillMaxWidth(), 
                     shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(16.dp)
-                ) {
-                    Text("Play Again", style = MaterialTheme.typography.titleMedium)
-                }
-                
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) { Text("Play Again") }
                 OutlinedButton(
-                    onClick = onHome,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(16.dp)
-                ) {
-                    Text("Back to Home", style = MaterialTheme.typography.titleMedium)
-                }
+                    onClick = onHome, 
+                    modifier = Modifier.fillMaxWidth(), 
+                    shape = RoundedCornerShape(16.dp)
+                ) { Text("Home") }
             }
         }
     )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun GameContentPreviewLightMode() {
+    UnscrambleTheme {
+        GameContent(
+            state = GameUiState.Success(
+                currentScrambleWord = "scramble",
+                currentWordCount = 1,
+                score = 20,
+                isGuessedWordWrong = false,
+                isGameOver = false,
+                isDevMode = true,
+                correctWord = "scramble"
+            ),
+            onUserGuessChanged = {},
+            onGuessSubmitted = {},
+            onSkipClicked = {},
+            onPlayAgain = {},
+            onDevSkip = {},
+            onDevReveal = {},
+            userGuess = "",
+            onHome = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun GameContentPreviewDarkMode() {
+    UnscrambleTheme {
+        GameContent(
+            state = GameUiState.Success(
+                currentScrambleWord = "scramble",
+                currentWordCount = 1,
+                score = 20,
+                isGuessedWordWrong = false,
+                isGameOver = false,
+                isDevMode = true,
+                correctWord = "scramble"
+            ),
+            onUserGuessChanged = {},
+            onGuessSubmitted = {},
+            onSkipClicked = {},
+            onPlayAgain = {},
+            onDevSkip = {},
+            onDevReveal = {},
+            userGuess = "",
+            onHome = {}
+        )
+    }
 }
