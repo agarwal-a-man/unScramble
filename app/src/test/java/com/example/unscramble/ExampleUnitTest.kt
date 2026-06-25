@@ -1,4 +1,4 @@
-package com.amanagarwal.unscramble
+package com.example.unscramble
 
 import org.junit.Test
 
