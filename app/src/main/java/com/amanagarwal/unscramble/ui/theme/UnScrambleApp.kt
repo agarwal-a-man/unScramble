@@ -6,14 +6,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.amanagarwal.unscramble.ui.screens.GameScreen
 import com.amanagarwal.unscramble.ui.screens.StartScreen
 import com.amanagarwal.unscramble.viewmodels.GameViewModel
-import com.amanagarwal.unscramble.viewmodels.ViewModelProvider
 
 enum class UnscrambleScreen {
     Start,
@@ -24,7 +23,6 @@ enum class UnscrambleScreen {
 fun UnScrambleApp() {
     val navController = rememberNavController()
 
-    // Surface ensures the background color from the theme is applied to the entire screen
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -43,7 +41,9 @@ fun UnScrambleApp() {
                     )
                 }
                 composable(route = UnscrambleScreen.Game.name) {
-                    val gameViewModel: GameViewModel = viewModel(factory = ViewModelProvider.Factory)
+                    // hiltViewModel() replaces viewModel(factory = ViewModelProvider.Factory)
+                    // Hilt handles construction and injection automatically
+                    val gameViewModel: GameViewModel = hiltViewModel()
 
                     GameScreen(
                         gameViewModel = gameViewModel,
