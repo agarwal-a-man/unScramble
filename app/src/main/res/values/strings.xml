@@ -20,13 +20,15 @@
     <string name="skip">Skip</string>
     <string name="submit">Submit</string>
     <string name="score">Score: %d</string>
-    <string name="word_count">%d/10</string>
+    <string name="word_count">%1$d / %2$d</string>
     <string name="enter_your_word">Enter your word</string>
     <string name="congratulations">Congratulations!</string>
     <string name="you_scored">"You scored: %d"</string>
     <string name="exit">Exit</string>
     <string name="play_again">Play Again</string>
     <string name="wrong_guess">Wrong Guess!</string>
+    <string name="wrong_guess_hint">That\'s not right, try again!</string>
+    <string name="offline_mode">Offline · Using cached words</string>
     <string name="loading_failed">Loading Failed</string>
     <string name="retry">Retry</string>
     <string name="loading">Loading</string>
