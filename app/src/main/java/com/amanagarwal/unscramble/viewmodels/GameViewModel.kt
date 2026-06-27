@@ -7,14 +7,20 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.amanagarwal.unscramble.data.MAX_NO_OF_WORDS
-import com.amanagarwal.unscramble.data.SCORE_INCREASE
 import com.amanagarwal.unscramble.data.WordsRepository
+import com.amanagarwal.unscramble.data.WordsResult
 import com.amanagarwal.unscramble.data.allWords
+import com.amanagarwal.unscramble.domain.usecase.CalculateScoreUseCase
+import com.amanagarwal.unscramble.domain.usecase.ShuffleWordUseCase
+import com.amanagarwal.unscramble.domain.usecase.ValidateGuessUseCase
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 private const val TAG = "GameViewModel"
 
@@ -31,11 +37,18 @@ sealed interface GameUiState {
         val correctWord: String = "",
         val isOffline: Boolean = false,
         val availableWordsCount: Int = 0,
-        val usedWordsCount: Int = 0
+        val usedWordsCount: Int = 0,
+        val scoreChangeDelta: Int = 0
     ) : GameUiState
 }
 
-class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() {
+@HiltViewModel
+class GameViewModel @Inject constructor(
+    private val wordsRepository: WordsRepository,
+    private val shuffleWordUseCase: ShuffleWordUseCase,
+    private val validateGuessUseCase: ValidateGuessUseCase,
+    private val calculateScoreUseCase: CalculateScoreUseCase
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
@@ -45,6 +58,7 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
     private var isOffline: Boolean = false
     private val usedWords = mutableSetOf<String>()
     private var availableWords: Set<String> = emptySet()
+    private var fetchJob: Job? = null
 
     var userGuess by mutableStateOf("")
         private set
@@ -57,19 +71,14 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
     fun fetchWords() {
         Log.d(TAG, "Fetching words...")
         _uiState.value = GameUiState.Loading
-        viewModelScope.launch {
-            try {
-                val words = wordsRepository.getUnscrambledWord()
-                availableWords = words
-                isOffline = false
-                Log.d(TAG, "Words successfully fetched from repository. Count: ${words.size}")
-                resetGameInternal()
-            } catch (e: Exception) {
-                Log.e(TAG, "Error fetching words: ${e.message}. Falling back to local words.", e)
-                availableWords = allWords
-                isOffline = true
-                resetGameInternal()
-            }
+        fetchJob?.cancel()
+        fetchJob = viewModelScope.launch {
+            // Repository handles all fallback logic — ViewModel just reads the result.
+            val result = wordsRepository.getWords()
+            availableWords = result.words
+            isOffline = result !is WordsResult.Live
+            Log.d(TAG, "Words ready. Source: ${result::class.simpleName}. Count: ${result.words.size}")
+            resetGameInternal()
         }
     }
 
@@ -78,6 +87,10 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
         usedWords.clear()
         userGuess = ""
         val firstWord = pickRandomWordAndShuffle()
+        if (firstWord.isBlank()) {
+            _uiState.value = GameUiState.Error
+            return
+        }
         _uiState.value = GameUiState.Success(
             currentScrambleWord = firstWord,
             currentWordCount = 1,
@@ -87,21 +100,38 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
             correctWord = currentWord,
             isOffline = isOffline,
             availableWordsCount = availableWords.size,
-            usedWordsCount = usedWords.size
+            usedWordsCount = usedWords.size,
+            scoreChangeDelta = 0
         )
     }
 
     fun updateUserGuess(guess: String) {
-        if (guess == "dev_mode=true") {
-            isDevMode = true
-            updateDevModeInState()
-            userGuess = ""
-            Log.d(TAG, "Developer mode enabled")
-        } else if (guess == "dev_mode=false") {
-            isDevMode = false
-            updateDevModeInState()
-            userGuess = ""
-            Log.d(TAG, "Developer mode disabled")
+        // Only reset the score delta when the user is actively typing a new guess.
+        // Do NOT reset it on programmatic calls like updateUserGuess("") that clear
+        // the field after a submission — those would wipe the delta before the UI sees it.
+        if (guess.isNotEmpty()) {
+            _uiState.update {
+                if (it is GameUiState.Success) it.copy(scoreChangeDelta = 0) else it
+            }
+        }
+        if (com.amanagarwal.unscramble.BuildConfig.DEBUG) {
+            when (guess) {
+                "dev_mode=true" -> {
+                    isDevMode = true
+                    updateDevModeInState()
+                    userGuess = ""
+                    Log.d(TAG, "Developer mode enabled")
+                }
+                "dev_mode=false" -> {
+                    isDevMode = false
+                    updateDevModeInState()
+                    userGuess = ""
+                    Log.d(TAG, "Developer mode disabled")
+                }
+                else -> {
+                    userGuess = guess
+                }
+            }
         } else {
             userGuess = guess
         }
@@ -123,16 +153,25 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
         val currentState = _uiState.value
         if (currentState !is GameUiState.Success) return
 
-        val guess = userGuess.trim()
-        Log.d(TAG, "Checking guess: $guess against target: $currentWord")
-        if (guess.equals(currentWord, ignoreCase = true)) {
-            Log.d(TAG, "Correct guess!")
-            updateGameState(currentState.score + SCORE_INCREASE)
-        } else {
-            Log.d(TAG, "Wrong guess!")
-            val newScore = (currentState.score - 10).coerceAtLeast(0)
-            _uiState.update { 
-                if (it is GameUiState.Success) it.copy(isGuessedWordWrong = true, score = newScore) else it
+        when (validateGuessUseCase(userGuess, currentWord)) {
+            is ValidateGuessUseCase.Result.Correct -> {
+                Log.d(TAG, "Correct guess!")
+                val newScore = calculateScoreUseCase.onCorrectGuess(currentState.score)
+                updateGameState(newScore, newScore - currentState.score)
+            }
+            is ValidateGuessUseCase.Result.Incorrect -> {
+                Log.d(TAG, "Wrong guess!")
+                val newScore = calculateScoreUseCase.onWrongGuess(currentState.score)
+                _uiState.update {
+                    if (it is GameUiState.Success) it.copy(
+                        isGuessedWordWrong = true,
+                        score = newScore,
+                        scoreChangeDelta = newScore - currentState.score
+                    ) else it
+                }
+            }
+            is ValidateGuessUseCase.Result.Empty -> {
+                // Do nothing — don't penalize an empty submission
             }
         }
         updateUserGuess("")
@@ -142,27 +181,43 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
         Log.d(TAG, "Word skipped: $currentWord")
         val currentState = _uiState.value
         if (currentState is GameUiState.Success) {
-            updateGameState(currentState.score)
+            val newScore = calculateScoreUseCase.onSkip(currentState.score)
+            updateGameState(newScore, newScore - currentState.score)
             updateUserGuess("")
         }
     }
 
-    // Dev mode feature: Skip word without losing score and without incrementing word count if desired?
-    // Actually, usually "Skip" just moves to next word. A dev skip might just be "Give me another one".
+    // Dev-only skip: jumps to a random new word without scoring penalty.
+    // Increments currentWordCount to stay in sync with usedWords.size (Bug #3 fix).
+    // Correctly propagates game-over when the word pool is exhausted (Bug #4 fix).
     fun devSkip() {
         if (!isDevMode) return
         Log.d(TAG, "Dev Skip triggered")
         val nextWord = pickRandomWordAndShuffle()
+        if (nextWord.isBlank()) {
+            // pickRandomWordAndShuffle() already set isGameOver=true in state — nothing more to do.
+            return
+        }
         _uiState.update {
             if (it is GameUiState.Success) {
                 it.copy(
                     isGuessedWordWrong = false,
                     currentScrambleWord = nextWord,
                     correctWord = currentWord,
-                    usedWordsCount = usedWords.size
+                    currentWordCount = it.currentWordCount + 1, // Bug #3: keep in sync with usedWords
+                    usedWordsCount = usedWords.size,
+                    scoreChangeDelta = 0
                 )
             } else it
         }
+    }
+
+
+    /** Exposed only for unit tests — allows enabling dev mode without relying on BuildConfig.DEBUG. */
+    @androidx.annotation.VisibleForTesting
+    fun enableDevModeForTesting() {
+        isDevMode = true
+        updateDevModeInState()
     }
 
     fun devReveal() {
@@ -174,35 +229,43 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
         val unused = availableWords - usedWords
         if (unused.isEmpty()) {
             Log.w(TAG, "No more available words!")
+            _uiState.update {
+                if (it is GameUiState.Success) it.copy(isGameOver = true) else it
+            }
             return ""
         }
         currentWord = unused.random()
         usedWords.add(currentWord)
-        val shuffled = shuffleCurrentWord(currentWord)
+        val shuffled = shuffleWordUseCase(currentWord)
         Log.d(TAG, "Picked word: $currentWord, Shuffled: $shuffled")
         return shuffled
     }
 
-    private fun shuffleCurrentWord(word: String): String {
-        if (word.length < 2) return word
-        var shuffled: String
-        do {
-            shuffled = word.toList().shuffled().joinToString("")
-        } while (shuffled == word)
-        return shuffled
-    }
-
-    private fun updateGameState(updatedScore: Int) {
+    private fun updateGameState(updatedScore: Int, delta: Int) {
         val currentState = _uiState.value
         if (currentState !is GameUiState.Success) return
 
         if (usedWords.size >= MAX_NO_OF_WORDS) {
             Log.d(TAG, "Game Over. Final Score: $updatedScore")
             _uiState.update { 
-                if (it is GameUiState.Success) it.copy(isGameOver = true, score = updatedScore) else it
+                if (it is GameUiState.Success) it.copy(
+                    isGameOver = true, 
+                    score = updatedScore,
+                    scoreChangeDelta = delta
+                ) else it
             }
         } else {
             val nextWord = pickRandomWordAndShuffle()
+            if (nextWord.isBlank()) {
+                _uiState.update {
+                    if (it is GameUiState.Success) it.copy(
+                        isGameOver = true, 
+                        score = updatedScore,
+                        scoreChangeDelta = delta
+                    ) else it
+                }
+                return
+            }
             Log.d(TAG, "Moving to next word. New Score: $updatedScore, Current Count: ${usedWords.size}")
             _uiState.update {
                 if (it is GameUiState.Success) {
@@ -214,7 +277,8 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
                         correctWord = currentWord,
                         isDevMode = isDevMode,
                         isOffline = isOffline,
-                        usedWordsCount = usedWords.size
+                        usedWordsCount = usedWords.size,
+                        scoreChangeDelta = delta
                     )
                 } else it
             }
@@ -223,6 +287,33 @@ class GameViewModel(private val wordsRepository: WordsRepository) : ViewModel() 
 
     fun resetGame() {
         Log.d(TAG, "Reset game requested")
-        fetchWords()
+        fetchWords() // full fetch — also updates cache if API responds
+    }
+
+    /**
+     * Silently attempts to refresh the word cache from the API without
+     * disrupting the current game. Called when a game ends while offline.
+     *
+     * If the refresh succeeds:
+     *  - The in-memory cache in the repository is updated
+     *  - [isOffline] is flipped to false so the NEXT game starts with live words
+     *  - UI state is updated to reflect restored connectivity
+     *
+     * If the refresh fails, nothing changes — user keeps playing from cache/static.
+     */
+    fun backgroundRefreshIfNeeded() {
+        if (!isOffline) return
+        Log.d(TAG, "Offline — attempting background cache refresh")
+        viewModelScope.launch {
+            val refreshed = wordsRepository.refreshCacheInBackground()
+            if (refreshed) {
+                isOffline = false
+                Log.d(TAG, "Background refresh succeeded — next game will use live words")
+                _uiState.update {
+                    if (it is GameUiState.Success) it.copy(isOffline = false) else it
+                }
+            }
+        }
     }
 }
+

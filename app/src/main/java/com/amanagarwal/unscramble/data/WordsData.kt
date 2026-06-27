@@ -16,11 +16,27 @@
 
 package com.amanagarwal.unscramble.data
 
+/** Number of words the player must unscramble to complete one game round. Change this to adjust game length — the UI round counter reads this constant automatically. */
 const val MAX_NO_OF_WORDS = 10
+
+/** Points awarded for each correct guess. Also used by [CalculateScoreUseCase]. */
 const val SCORE_INCREASE = 20
 
+/**
+ * Static fallback word list used when the API is unavailable and the in-memory cache is empty.
+ *
+ * **Known issue (Bug #5):** The list contains short words (e.g. "all", "cat", "fox", "ice",
+ * "oak", "run", "you") that are trivially easy to unscramble and words with repeated
+ * consecutive letters. These should be filtered or replaced in a future cleanup pass.
+ *
+ * Words should be:
+ * - 5+ letters for a fair challenge
+ * - No consecutive repeated letters (gives the shuffle algorithm room to permute)
+ * - Lowercase only
+ */
 val allWords: Set<String> =
     setOf(
+
         "animal",
         "auto",
         "anecdote",

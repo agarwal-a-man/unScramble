@@ -20,14 +20,29 @@
     <string name="skip">Skip</string>
     <string name="submit">Submit</string>
     <string name="score">Score: %d</string>
-    <string name="word_count">%d/10</string>
+    <string name="word_count">%1$d / %2$d</string>
     <string name="enter_your_word">Enter your word</string>
     <string name="congratulations">Congratulations!</string>
     <string name="you_scored">"You scored: %d"</string>
     <string name="exit">Exit</string>
     <string name="play_again">Play Again</string>
     <string name="wrong_guess">Wrong Guess!</string>
+    <string name="wrong_guess_hint">That\'s not right, try again!</string>
+    <string name="offline_mode">Offline · Using cached words</string>
     <string name="loading_failed">Loading Failed</string>
-    <string name="retry">Retry\n</string>
-    <string name="loading">Loading\n</string>
+    <string name="retry">Retry</string>
+    <string name="loading">Loading</string>
+    <string name="performance_excellent">Bravo! Amazing performance!</string>
+    <string name="performance_good">Well done! Good effort!</string>
+    <string name="performance_average">Nice! Keep practicing!</string>
+    <string name="performance_low">Good try! You can do better!</string>
+
+    <string name="unleash_vocabulary">Unleash your vocabulary</string>
+    <string name="start_game">Start Game</string>
+    <string name="submit_answer">Submit Answer</string>
+    <string name="skip_word">Skip Word</string>
+    <string name="congrats_message">You\'ve successfully completed the challenge.</string>
+    <string name="final_score">Final Score</string>
+    <string name="back_to_home">Back to Home</string>
+    <string name="unscramble_the_word">Unscramble the word</string>
 </resources>
