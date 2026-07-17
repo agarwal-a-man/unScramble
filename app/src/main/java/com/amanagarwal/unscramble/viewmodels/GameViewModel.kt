@@ -1,6 +1,7 @@
 package com.amanagarwal.unscramble.viewmodels
 
 import android.util.Log
+import androidx.annotation.Keep
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -24,9 +25,13 @@ import javax.inject.Inject
 
 private const val TAG = "GameViewModel"
 
+@Keep
 sealed interface GameUiState {
+    @Keep
     object Loading : GameUiState
+    @Keep
     object Error : GameUiState
+    @Keep
     data class Success(
         val currentScrambleWord: String = "",
         val isGuessedWordWrong: Boolean = false,

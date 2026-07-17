@@ -1,5 +1,7 @@
 package com.amanagarwal.unscramble.data
 
+import androidx.annotation.Keep
+
 /**
  * Represents the origin of the word set returned by [WordsRepository].
  *
@@ -19,21 +21,25 @@ package com.amanagarwal.unscramble.data
  * (persisted across process restarts), replacing the current in-memory cache.
  * [Static] remains as the absolute last resort when both API and DB are unavailable.
  */
+@Keep
 sealed interface WordsResult {
     val words: Set<String>
 
     /** Words fetched live from the API. The in-memory cache has been updated. */
+    @Keep
     data class Live(override val words: Set<String>) : WordsResult
 
     /**
      * API failed. Words served from the last successful API fetch (in-memory cache).
      * After Phase 2: will represent words read from Room database.
      */
+    @Keep
     data class Cached(override val words: Set<String>) : WordsResult
 
     /**
      * API failed and no cache is available.
      * Serving the built-in static [allWords] list as a last resort.
      */
+    @Keep
     data class Static(override val words: Set<String>) : WordsResult
 }
