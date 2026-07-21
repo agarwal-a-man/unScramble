@@ -15,8 +15,8 @@ android {
         applicationId = "com.amanagarwal.unscramble"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.2.3"
+        versionCode = 11
+        versionName = "1.2.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -24,10 +24,23 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+
+        // Staging: identical R8/shrink settings as release, signed with the debug key
+        // so it can be installed directly from Android Studio without Play Console.
+        // NOTE: isDebuggable is intentionally NOT set — Android disables all R8 minification
+        // when isDebuggable=true, which defeats the entire point of this build type.
+        // The debug signing key is enough to sideload from AS.
+        create("staging") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -66,9 +79,10 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    // Retrofit & Networking
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
+    // Networking — OkHttp for HTTP calls, kotlinx-serialization for JSON parsing.
+    // Note: Retrofit was removed. Its dynamic proxy used Java reflection on generic
+    // Continuation<T> types which R8 strips in minified builds (ClassCastException).
+    // We now use OkHttp directly in NetworkModule with decodeFromString<T>() (compile-time reified).
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 

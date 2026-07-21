@@ -1,6 +1,7 @@
 package com.amanagarwal.unscramble.data
 
 import android.util.Log
+import androidx.annotation.Keep
 import com.amanagarwal.unscramble.network.WordsApiService
 import javax.inject.Inject
 
@@ -21,6 +22,7 @@ interface WordsRepository {
     suspend fun refreshCacheInBackground(): Boolean
 }
 
+@Keep
 class NetworkWordsRepository @Inject constructor(
     private val wordsApiService: WordsApiService
 ) : WordsRepository {
@@ -36,13 +38,14 @@ class NetworkWordsRepository @Inject constructor(
 
     override suspend fun getWords(): WordsResult {
         return try {
+            Log.d(TAG, "Calling API: wordsApiService.getWord()")
             val words = wordsApiService.getWord()
             if (words.isEmpty()) throw Exception("API returned empty word list")
             wordCache = words
             Log.d(TAG, "Live words fetched. Count: ${words.size}. Cache updated.")
             WordsResult.Live(words)
         } catch (e: Exception) {
-            Log.w(TAG, "API failed: ${e.message}. Checking cache.")
+            Log.w(TAG, "API call failed: ${e.message}. Checking cache.")
             if (wordCache.isNotEmpty()) {
                 Log.d(TAG, "Serving cached words. Count: ${wordCache.size}")
                 WordsResult.Cached(wordCache)
@@ -55,13 +58,14 @@ class NetworkWordsRepository @Inject constructor(
 
     override suspend fun refreshCacheInBackground(): Boolean {
         return try {
+            Log.d(TAG, "Background refresh: calling API")
             val words = wordsApiService.getWord()
             if (words.isEmpty()) return false
             wordCache = words
             Log.d(TAG, "Background cache refresh successful. Count: ${words.size}")
             true
         } catch (e: Exception) {
-            Log.d(TAG, "Background cache refresh failed silently: ${e.message}")
+            Log.w(TAG, "Background refresh failed silently: ${e.message}")
             false
         }
     }

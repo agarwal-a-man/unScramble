@@ -1,5 +1,5 @@
 [versions]
-agp = "9.2.1"
+agp = "9.3.0"
 composeBomVersion = "2025.01.01"
 kotlin = "2.2.10"
 coreKtx = "1.15.0"
@@ -13,7 +13,7 @@ navigationCompose = "2.8.7"
 uiTextGoogleFonts = "1.7.7"
 coroutines = "1.9.0"
 hilt = "2.57.1"
-ksp = "2.2.10-2.0.2"
+ksp = "2.3.2"
 
 [libraries]
 androidx-compose-bom-v20250100 = { module = "androidx.compose:compose-bom", version.ref = "composeBomVersion" }
